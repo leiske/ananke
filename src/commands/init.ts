@@ -16,6 +16,10 @@ export const initCommand: CommandHandler = async (ctx, input) => {
 
   const workspaceRoot = ctx.paths.root;
   const anankeDir = ctx.paths.anankeDir;
+  const agentsDir = `${workspaceRoot}/.agents`;
+  const agentsSkillsDir = `${agentsDir}/skills`;
+  const anankeSkillDir = `${agentsSkillsDir}/ananke`;
+  const anankeSkillFile = `${anankeSkillDir}/SKILL.md`;
   const epicsDir = ctx.paths.epicsDir;
   const tasksDir = ctx.paths.tasksDir;
   const depsDir = ctx.paths.depsDir;
@@ -40,6 +44,9 @@ export const initCommand: CommandHandler = async (ctx, input) => {
   const created: string[] = [];
 
   await ensureDir(anankeDir, created, workspaceRoot);
+  await ensureDir(agentsDir, created, workspaceRoot);
+  await ensureDir(agentsSkillsDir, created, workspaceRoot);
+  await ensureDir(anankeSkillDir, created, workspaceRoot);
   await ensureDir(epicsDir, created, workspaceRoot);
   await ensureDir(tasksDir, created, workspaceRoot);
   await ensureDir(depsDir, created, workspaceRoot);
@@ -54,6 +61,13 @@ export const initCommand: CommandHandler = async (ctx, input) => {
 
   await ensureJsonFile(indexFile, defaultIndex, mode, created, workspaceRoot);
   await ensureJsonFile(blocksFile, [], mode, created, workspaceRoot);
+  await ensureTextFile(
+    anankeSkillFile,
+    buildAnankeSkillMarkdown(),
+    mode,
+    created,
+    workspaceRoot,
+  );
   await ensureJsonFile(
     schemaFile,
     buildCanonicalSchema(),
@@ -103,6 +117,172 @@ async function ensureJsonFile(
 
   await writeJsonFile(filePath, defaultValue);
   created.push(toWorkspaceRelative(root, filePath));
+}
+
+async function ensureTextFile(
+  filePath: string,
+  defaultValue: string,
+  mode: InitMode,
+  created: string[],
+  root: string,
+): Promise<void> {
+  if (!existsSync(filePath)) {
+    await Bun.write(filePath, defaultValue);
+    created.push(toWorkspaceRelative(root, filePath));
+    return;
+  }
+
+  if (mode !== "update") {
+    return;
+  }
+
+  const fileStats = await stat(filePath);
+  if (fileStats.size > 0) {
+    return;
+  }
+
+  const existingContent = await readFile(filePath, "utf8");
+  if (existingContent.length > 0) {
+    return;
+  }
+
+  await Bun.write(filePath, defaultValue);
+  created.push(toWorkspaceRelative(root, filePath));
+}
+
+function buildAnankeSkillMarkdown(): string {
+  return `---
+name: ananke
+description: Use the ananke CLI as the source of truth for epic and task execution, dependency management, and deterministic context packs.
+compatibility: opencode
+metadata:
+  domain: task-management
+  interface: cli
+  style: json-first
+---
+
+# ananke
+
+Use this skill when working in repositories that use ananke for durable task memory.
+
+## Purpose
+
+Drive work through epics, tasks, and blockers instead of ad-hoc notes. Preserve durable memory with task outcome summaries and start implementation from deterministic context packs.
+
+## Command Invocation Rules
+
+- Prefer machine-readable output by passing \`--json\`.
+- In this repo, run the CLI with Bun:
+  - \`bun run src/bin/ananke.ts --json ...\`
+- Use \`--root <path>\` for isolated test or sandbox runs.
+- Treat command output as authoritative and always check \`ok\`.
+- Response envelopes:
+  - success: \`{ ok: true, message, data? }\`
+  - failure: \`{ ok: false, error: { code, message, details? } }\`
+
+## ID and Validation Rules
+
+- Epic IDs: \`EPC-<number>\`
+- Task IDs: \`TSK-<number>\`
+- Fix parser-level argument errors instead of retrying with guesses.
+- Important error codes:
+  - \`INVALID_ARGS\` (exit 2)
+  - \`NOT_FOUND\` (exit 3)
+  - \`CONFLICT\` (exit 4)
+  - \`NOT_IMPLEMENTED\` (exit 10)
+
+## Standard Workflow
+
+1. Ensure workspace is initialized.
+2. Create or select the target epic.
+3. Create tasks with acceptance criteria.
+4. Add dependency edges with \`dep add\` when work is blocked.
+5. Query \`ready\` for deterministic next work.
+6. Move active task to \`doing\`.
+7. Implement and validate changes.
+8. Close task with a durable summary.
+9. Re-run \`ready\` and continue.
+
+## Command Playbook
+
+Initialize workspace:
+
+\`\`\`bash
+bun run src/bin/ananke.ts --json --root "$ROOT" init
+\`\`\`
+
+Create epic:
+
+\`\`\`bash
+bun run src/bin/ananke.ts --json --root "$ROOT" epic create \\
+  --title "Pack command" \\
+  --goal "Generate deterministic task context packs"
+\`\`\`
+
+Create task:
+
+\`\`\`bash
+bun run src/bin/ananke.ts --json --root "$ROOT" task create \\
+  --epic EPC-001 \\
+  --title "Implement pack command handler" \\
+  --description "Build md/json context pack generation for one task" \\
+  --priority 1 \\
+  --acceptance "Writes .ananke/packs/<task>.md by default" \\
+  --acceptance "Supports --format json --stdout"
+\`\`\`
+
+Add and remove blockers:
+
+\`\`\`bash
+bun run src/bin/ananke.ts --json --root "$ROOT" dep add TSK-001 TSK-002
+bun run src/bin/ananke.ts --json --root "$ROOT" dep rm TSK-001 TSK-002
+\`\`\`
+
+List ready work:
+
+\`\`\`bash
+bun run src/bin/ananke.ts --json --root "$ROOT" ready
+bun run src/bin/ananke.ts --json --root "$ROOT" ready --epic EPC-001 --limit 5
+\`\`\`
+
+Move a task to doing:
+
+\`\`\`bash
+bun run src/bin/ananke.ts --json --root "$ROOT" task update TSK-002 --status doing --notes "Started implementation"
+\`\`\`
+
+Close a task (required durable memory):
+
+\`\`\`bash
+bun run src/bin/ananke.ts --json --root "$ROOT" task close TSK-002 --summary "Implemented X, validated Y, risks Z"
+\`\`\`
+
+Generate context pack:
+
+\`\`\`bash
+bun run src/bin/ananke.ts --json --root "$ROOT" pack TSK-002
+bun run src/bin/ananke.ts --json --root "$ROOT" pack TSK-002 --format json --stdout
+\`\`\`
+
+## Required Agent Behaviors
+
+- Start implementation from \`pack <task-id>\` when available.
+- Keep task state accurate: \`todo -> doing -> done\`.
+- Never transition to \`done\` without a meaningful summary.
+- Use dependencies to model sequencing constraints explicitly.
+- Select next work from \`ready\` output, not intuition.
+
+## Temporary Fallback Until pack Is Implemented
+
+If \`pack\` returns \`NOT_IMPLEMENTED\`:
+
+1. Run \`task show <task-id>\`.
+2. Run \`epic show <epic-id>\` from the task data.
+3. Run \`ready --epic <epic-id>\` for execution context.
+4. Continue work and close with a high-quality summary.
+
+Use this fallback only until \`pack\` is implemented.
+`;
 }
 
 function buildCanonicalSchema(): unknown {
