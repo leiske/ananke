@@ -8,11 +8,12 @@ import type { CliGlobals, ParsedArgv, ParsedCommand } from "./types";
 interface GlobalsAndArgs {
   globals: CliGlobals;
   args: string[];
+  help: boolean;
 }
 
 export function parseArgv(argv: string[], cwd: string): ParsedArgv {
-  const { globals, args } = parseGlobals(argv, cwd);
-  if (args.length === 0) {
+  const { globals, args, help } = parseGlobals(argv, cwd);
+  if (help || args.length === 0) {
     return {
       globals,
       command: null,
@@ -31,6 +32,7 @@ function parseGlobals(argv: string[], cwd: string): GlobalsAndArgs {
     json: false,
     root: detectWorkspaceRoot(cwd),
   };
+  let help = false;
 
   const args: string[] = [];
   let index = 0;
@@ -43,6 +45,12 @@ function parseGlobals(argv: string[], cwd: string): GlobalsAndArgs {
 
     if (token === "--json") {
       globals.json = true;
+      index += 1;
+      continue;
+    }
+
+    if (token === "--help" || token === "-h") {
+      help = true;
       index += 1;
       continue;
     }
@@ -81,6 +89,7 @@ function parseGlobals(argv: string[], cwd: string): GlobalsAndArgs {
   return {
     globals,
     args,
+    help,
   };
 }
 

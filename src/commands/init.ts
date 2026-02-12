@@ -67,6 +67,7 @@ export const initCommand: CommandHandler = async (ctx, input) => {
     mode,
     created,
     workspaceRoot,
+    true,
   );
   await ensureJsonFile(
     schemaFile,
@@ -125,10 +126,16 @@ async function ensureTextFile(
   mode: InitMode,
   created: string[],
   root: string,
+  replaceOnUpdate: boolean,
 ): Promise<void> {
   if (!existsSync(filePath)) {
     await Bun.write(filePath, defaultValue);
     created.push(toWorkspaceRelative(root, filePath));
+    return;
+  }
+
+  if (mode === "update" && replaceOnUpdate) {
+    await Bun.write(filePath, defaultValue);
     return;
   }
 
@@ -172,13 +179,38 @@ Drive work through epics, tasks, and blockers instead of ad-hoc notes. Preserve 
 ## Command Invocation Rules
 
 - Prefer machine-readable output by passing \`--json\`.
-- In this repo, run the CLI with Bun:
-  - \`bun run src/bin/ananke.ts --json ...\`
+- Run the CLI:
+  - \`ananke --json ...\`
 - Use \`--root <path>\` for isolated test or sandbox runs.
 - Treat command output as authoritative and always check \`ok\`.
 - Response envelopes:
   - success: \`{ ok: true, message, data? }\`
   - failure: \`{ ok: false, error: { code, message, details? } }\`
+
+## Built-in Command List
+
+The current output of \`ananke --help\` is:
+
+\`\`\`text
+ananke - AI-native local execution layer
+
+Usage:
+  ananke [--json] [--root <path>] <command> [command args/options]
+
+Commands:
+  init               Initialize .ananke workspace scaffold
+  epic create        Create a new epic
+  epic show          Show one epic by id
+  epic update        Update an existing epic
+  task create        Create a new task
+  task show          Show one task by id
+  task update        Update an existing task
+  task close         Close a task with outcome summary
+  dep add            Add a blocks dependency edge
+  dep rm             Remove a blocks dependency edge
+  ready              List tasks ready to execute
+  pack               Generate a task context pack
+\`\`\`
 
 ## ID and Validation Rules
 
@@ -208,13 +240,13 @@ Drive work through epics, tasks, and blockers instead of ad-hoc notes. Preserve 
 Initialize workspace:
 
 \`\`\`bash
-bun run src/bin/ananke.ts --json --root "$ROOT" init
+ananke --json --root "$ROOT" init
 \`\`\`
 
 Create epic:
 
 \`\`\`bash
-bun run src/bin/ananke.ts --json --root "$ROOT" epic create \\
+ananke --json --root "$ROOT" epic create \\
   --title "Pack command" \\
   --goal "Generate deterministic task context packs"
 \`\`\`
@@ -222,7 +254,7 @@ bun run src/bin/ananke.ts --json --root "$ROOT" epic create \\
 Create task:
 
 \`\`\`bash
-bun run src/bin/ananke.ts --json --root "$ROOT" task create \\
+ananke --json --root "$ROOT" task create \\
   --epic EPC-001 \\
   --title "Implement pack command handler" \\
   --description "Build md/json context pack generation for one task" \\
@@ -234,34 +266,34 @@ bun run src/bin/ananke.ts --json --root "$ROOT" task create \\
 Add and remove blockers:
 
 \`\`\`bash
-bun run src/bin/ananke.ts --json --root "$ROOT" dep add TSK-001 TSK-002
-bun run src/bin/ananke.ts --json --root "$ROOT" dep rm TSK-001 TSK-002
+ananke --json --root "$ROOT" dep add TSK-001 TSK-002
+ananke --json --root "$ROOT" dep rm TSK-001 TSK-002
 \`\`\`
 
 List ready work:
 
 \`\`\`bash
-bun run src/bin/ananke.ts --json --root "$ROOT" ready
-bun run src/bin/ananke.ts --json --root "$ROOT" ready --epic EPC-001 --limit 5
+ananke --json --root "$ROOT" ready
+ananke --json --root "$ROOT" ready --epic EPC-001 --limit 5
 \`\`\`
 
 Move a task to doing:
 
 \`\`\`bash
-bun run src/bin/ananke.ts --json --root "$ROOT" task update TSK-002 --status doing --notes "Started implementation"
+ananke --json --root "$ROOT" task update TSK-002 --status doing --notes "Started implementation"
 \`\`\`
 
 Close a task (required durable memory):
 
 \`\`\`bash
-bun run src/bin/ananke.ts --json --root "$ROOT" task close TSK-002 --summary "Implemented X, validated Y, risks Z"
+ananke --json --root "$ROOT" task close TSK-002 --summary "Implemented X, validated Y, risks Z"
 \`\`\`
 
 Generate context pack:
 
 \`\`\`bash
-bun run src/bin/ananke.ts --json --root "$ROOT" pack TSK-002
-bun run src/bin/ananke.ts --json --root "$ROOT" pack TSK-002 --format json --stdout
+ananke --json --root "$ROOT" pack TSK-002
+ananke --json --root "$ROOT" pack TSK-002 --format json --stdout
 \`\`\`
 
 ## Required Agent Behaviors

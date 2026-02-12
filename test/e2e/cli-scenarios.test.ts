@@ -19,8 +19,19 @@ describe("CLI e2e scenarios", () => {
       expect(created).toContain(".agents/skills/ananke");
       expect(created).toContain(".agents/skills/ananke/SKILL.md");
 
+      const skillPath = `${root}/.agents/skills/ananke/SKILL.md`;
+      const initialSkillContent = await Bun.file(skillPath).text();
+      expect(initialSkillContent).toContain("## Built-in Command List");
+      expect(initialSkillContent).toContain("The current output of `ananke --help` is:");
+      expect(initialSkillContent).toContain("epic create        Create a new epic");
+      await Bun.write(skillPath, "custom local override\n");
+
       expectFailure(await runCli(root, ["init"]), "CONFLICT", 4);
       expectSuccess(await runCli(root, ["init", "--update"]));
+
+      const updatedSkillContent = await Bun.file(skillPath).text();
+      expect(updatedSkillContent).toBe(initialSkillContent);
+
       expectSuccess(await runCli(root, ["init", "--reset"]));
     });
   });
@@ -46,6 +57,30 @@ describe("CLI e2e scenarios", () => {
       await removeTempRoot(rootA);
       await removeTempRoot(rootB);
     }
+  });
+
+  test("global help flag lists all commands scenario", async () => {
+    await withTempRoot(async (root) => {
+      const invocation = await runCli(root, ["--help"]);
+      expect(invocation.exitCode).toBe(0);
+      expect(invocation.json.ok).toBe(true);
+
+      const commandNames = readHelpCommandNames(invocation);
+      expect(commandNames).toEqual([
+        "init",
+        "epic create",
+        "epic show",
+        "epic update",
+        "task create",
+        "task show",
+        "task update",
+        "task close",
+        "dep add",
+        "dep rm",
+        "ready",
+        "pack",
+      ]);
+    });
   });
 
   test("epic and task lifecycle scenario", async () => {
@@ -871,4 +906,19 @@ function readReadyTaskIds(invocation: Awaited<ReturnType<typeof runCli>>): strin
   const taskIds = (tasksValue as Array<{ id?: unknown }>).map((task) => task.id);
   expect(taskIds.every((id) => typeof id === "string")).toBe(true);
   return taskIds as string[];
+}
+
+function readHelpCommandNames(invocation: Awaited<ReturnType<typeof runCli>>): string[] {
+  const successPayload = invocation.json as { commands?: unknown; data?: { commands?: unknown } };
+  const commandsValue = Array.isArray(successPayload.commands)
+    ? successPayload.commands
+    : Array.isArray(successPayload.data?.commands)
+      ? successPayload.data.commands
+      : undefined;
+
+  expect(commandsValue).toBeDefined();
+
+  const commandNames = (commandsValue as Array<{ command?: unknown }>).map((entry) => entry.command);
+  expect(commandNames.every((name) => typeof name === "string")).toBe(true);
+  return commandNames as string[];
 }
