@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ananke.schema.json",
+  "title": "Ananke Workspace Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "index",
+    "epic",
+    "task",
+    "blocks"
+  ],
+  "properties": {
+    "index": {
+      "$ref": "#/$defs/index"
+    },
+    "epic": {
+      "$ref": "#/$defs/epic"
+    },
+    "task": {
+      "$ref": "#/$defs/task"
+    },
+    "blocks": {
+      "$ref": "#/$defs/blocks"
+    }
+  },
+  "$defs": {
+    "index": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "next_epic",
+        "next_task",
+        "updated_at"
+      ],
+      "properties": {
+        "next_epic": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "next_task": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "epic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "goal",
+        "status",
+        "constraints",
+        "decisions",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^E-[0-9]{3}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "goal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "paused",
+            "done"
+          ]
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "context": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "epic_id",
+        "title",
+        "description",
+        "status",
+        "priority",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^T-[0-9]{3}$"
+        },
+        "epic_id": {
+          "type": "string",
+          "pattern": "^E-[0-9]{3}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "todo",
+            "doing",
+            "done"
+          ]
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "notes": {
+          "type": "string"
+        },
+        "acceptance": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "outcome_summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "blockEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "type": "string",
+          "pattern": "^T-[0-9]{3}$"
+        },
+        "to": {
+          "type": "string",
+          "pattern": "^T-[0-9]{3}$"
+        }
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/blockEdge"
+      }
+    }
+  }
+}

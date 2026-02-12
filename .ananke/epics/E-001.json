@@ -1,0 +1,17 @@
+{
+  "id": "E-001",
+  "title": "Epic Show Slice",
+  "goal": "Implement epic show command",
+  "status": "paused",
+  "constraints": [
+    "No daemon in MVP",
+    "foo",
+    "bar"
+  ],
+  "decisions": [
+    "Use generated packs as default handoff"
+  ],
+  "created_at": "2026-02-12T06:11:38.157Z",
+  "updated_at": "2026-02-12T06:21:54.181Z",
+  "digest": "Current synthesis"
+}
