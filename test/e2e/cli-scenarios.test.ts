@@ -196,7 +196,7 @@ describe("CLI e2e scenarios", () => {
     });
   });
 
-  test("blocking relationship controls ready queue (red)", async () => {
+  test("blocking relationship controls ready queue", async () => {
     await withTempRoot(async (root) => {
       expectSuccess(await runCli(root, ["init"]));
 
