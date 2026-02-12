@@ -9,6 +9,7 @@
   "scripts": {
     "cli": "bun run src/bin/ananke.ts",
     "dev": "bun run src/bin/ananke.ts",
+    "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

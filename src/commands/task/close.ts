@@ -1,6 +1,24 @@
-import { notImplemented } from "../_stub";
 import type { CommandHandler } from "../../cli/types";
+import { isCliFailure, mutateTask } from "./mutate";
+import { formatTaskMutationResult } from "./result";
 
-export const taskCloseCommand: CommandHandler = async (_ctx, input) => {
-  return notImplemented("task close", input);
+interface TaskCloseInput {
+  taskId: string;
+  summary: string;
+}
+
+export const taskCloseCommand: CommandHandler = async (ctx, input) => {
+  const parsed = input as TaskCloseInput;
+
+  const mutation = await mutateTask(ctx, parsed.taskId, {
+    status: "done",
+    outcomeSummary: parsed.summary,
+    addAcceptance: [],
+  });
+
+  if (isCliFailure(mutation)) {
+    return mutation;
+  }
+
+  return formatTaskMutationResult(ctx, parsed.taskId, "Closed", mutation);
 };

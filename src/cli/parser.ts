@@ -364,6 +364,7 @@ function parseTaskUpdateInput(args: string[]): {
   status?: "todo" | "doing" | "done";
   priority?: 0 | 1 | 2 | 3 | 4;
   notes?: string;
+  outcomeSummary?: string;
   addAcceptance: string[];
 } {
   return parseWithCommander(args, (command, setInput) => {
@@ -373,6 +374,7 @@ function parseTaskUpdateInput(args: string[]): {
       .option("--description <text>", "Updated description", parseNonEmptyText)
       .addOption(new Option("--status <status>").choices(["todo", "doing", "done"]))
       .option("--notes <text>", "Task notes", parseNonEmptyText)
+      .option("--outcome-summary <text>", "Task outcome summary", parseNonEmptyText)
       .option("--add-acceptance <text>", "Append acceptance criteria", collectNonEmptyValues, [])
       .addOption(new Option("--priority <value>").argParser(parsePriorityValue))
       .action((taskId: string, options: {
@@ -381,6 +383,7 @@ function parseTaskUpdateInput(args: string[]): {
         status?: "todo" | "doing" | "done";
         priority?: 0 | 1 | 2 | 3 | 4;
         notes?: string;
+        outcomeSummary?: string;
         addAcceptance: string[];
       }) => {
         const input = {
@@ -390,6 +393,7 @@ function parseTaskUpdateInput(args: string[]): {
           status: options.status,
           priority: options.priority,
           notes: options.notes,
+          outcomeSummary: options.outcomeSummary,
           addAcceptance: options.addAcceptance,
         };
 
@@ -399,9 +403,14 @@ function parseTaskUpdateInput(args: string[]): {
           input.status === undefined &&
           input.priority === undefined &&
           input.notes === undefined &&
+          input.outcomeSummary === undefined &&
           input.addAcceptance.length === 0
         ) {
           throw new InvalidArgumentError("No updates provided");
+        }
+
+        if (input.status === "done" && input.outcomeSummary === undefined) {
+          throw new InvalidArgumentError("--outcome-summary is required when --status is done");
         }
 
         setInput(input);
