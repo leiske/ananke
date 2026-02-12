@@ -1,9 +1,11 @@
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fail, ok } from "../../cli/errors";
 import type { CliFailure, CommandHandler } from "../../cli/types";
+import { assertWorkspaceInitialized } from "../../workspace/assertions";
+import { isAnankeIndex } from "../../workspace/guards";
 import { EPIC_PREFIX } from "../../workspace/ids";
+import { readJsonFile, toWorkspaceRelative, writeJsonFile } from "../../workspace/io";
 import type { AnankeIndex, Epic } from "../../workspace/types";
 
 interface ParsedEpicCreateArgs {
@@ -21,8 +23,9 @@ export const epicCreateCommand: CommandHandler = async (ctx, input) => {
   const indexFile = ctx.paths.indexFile;
   const epicsDir = ctx.paths.epicsDir;
 
-  if (!existsSync(indexFile) || !existsSync(epicsDir)) {
-    return fail("NOT_FOUND", "Workspace not initialized. Run `ananke init` first.");
+  const workspaceFailure = assertWorkspaceInitialized(ctx.paths);
+  if (workspaceFailure) {
+    return workspaceFailure;
   }
 
   const index = await readIndex(indexFile);
@@ -59,64 +62,36 @@ export const epicCreateCommand: CommandHandler = async (ctx, input) => {
     updated_at: timestamp,
   };
 
-  await writeJson(epicPath, epic);
-  await writeJson(indexFile, nextIndex);
+  await writeJsonFile(epicPath, epic);
+  await writeJsonFile(indexFile, nextIndex);
 
   return ok(`Created epic ${epicId}`, {
     epic: {
       id: epicId,
       status: epic.status,
     },
-    path: relativePath(workspaceRoot, epicPath),
+    path: toWorkspaceRelative(workspaceRoot, epicPath),
   });
 };
 
 async function readIndex(indexFile: string): Promise<AnankeIndex | CliFailure> {
   try {
-    const raw = await readFile(indexFile, "utf8");
-    const parsed = JSON.parse(raw) as Partial<AnankeIndex>;
+    const parsed = await readJsonFile<unknown>(indexFile);
 
-    if (
-      typeof parsed.next_epic !== "number" ||
-      !Number.isInteger(parsed.next_epic) ||
-      parsed.next_epic < 1 ||
-      typeof parsed.next_task !== "number" ||
-      !Number.isInteger(parsed.next_task) ||
-      parsed.next_task < 1 ||
-      typeof parsed.updated_at !== "string"
-    ) {
+    if (!isAnankeIndex(parsed)) {
       return fail("CONFLICT", "Invalid .ananke/index.json contents");
     }
 
-    return {
-      next_epic: parsed.next_epic,
-      next_task: parsed.next_task,
-      updated_at: parsed.updated_at,
-    };
+    return parsed;
   } catch (_error) {
     return fail("CONFLICT", "Failed reading .ananke/index.json");
   }
-}
-
-async function writeJson(filePath: string, value: unknown): Promise<void> {
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
 function formatEpicId(nextEpic: number): string {
   return `${EPIC_PREFIX}-${String(nextEpic).padStart(3, "0")}`;
 }
 
-function relativePath(root: string, target: string): string {
-  const rel = path.relative(root, target);
-  if (rel.length === 0) {
-    return ".";
-  }
-
-  return rel;
-}
-
-function isCliFailure(
-  value: CliFailure | AnankeIndex,
-): value is CliFailure {
+function isCliFailure(value: CliFailure | AnankeIndex): value is CliFailure {
   return "ok" in value && value.ok === false;
 }

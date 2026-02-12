@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { mkdir, readFile, rm, stat } from "node:fs/promises";
 import { fail, ok } from "../cli/errors";
 import type { CommandHandler } from "../cli/types";
 import { EPIC_ID_PATTERN_SOURCE, TASK_ID_PATTERN_SOURCE } from "../workspace/ids";
+import { toWorkspaceRelative, writeJsonFile } from "../workspace/io";
 import type { AnankeIndex } from "../workspace/types";
 
 type InitMode = "create" | "update" | "reset";
@@ -71,7 +71,7 @@ async function ensureDir(dirPath: string, created: string[], root: string): Prom
   }
 
   await mkdir(dirPath, { recursive: true });
-  created.push(relativePath(root, dirPath));
+  created.push(toWorkspaceRelative(root, dirPath));
 }
 
 async function ensureJsonFile(
@@ -81,11 +81,9 @@ async function ensureJsonFile(
   created: string[],
   root: string,
 ): Promise<void> {
-  const serialized = `${JSON.stringify(defaultValue, null, 2)}\n`;
-
   if (!existsSync(filePath)) {
-    await writeFile(filePath, serialized, "utf8");
-    created.push(relativePath(root, filePath));
+    await writeJsonFile(filePath, defaultValue);
+    created.push(toWorkspaceRelative(root, filePath));
     return;
   }
 
@@ -103,17 +101,8 @@ async function ensureJsonFile(
     return;
   }
 
-  await writeFile(filePath, serialized, "utf8");
-  created.push(relativePath(root, filePath));
-}
-
-function relativePath(root: string, target: string): string {
-  const rel = path.relative(root, target);
-  if (rel.length === 0) {
-    return ".";
-  }
-
-  return rel;
+  await writeJsonFile(filePath, defaultValue);
+  created.push(toWorkspaceRelative(root, filePath));
 }
 
 function buildCanonicalSchema(): unknown {

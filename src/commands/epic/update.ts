@@ -1,8 +1,8 @@
-import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { fail, ok } from "../../cli/errors";
 import type { CliFailure, CommandHandler } from "../../cli/types";
+import { assertEpicExists, assertWorkspaceInitialized } from "../../workspace/assertions";
+import { isEpic } from "../../workspace/guards";
+import { readJsonFile, toWorkspaceRelative, writeJsonFile } from "../../workspace/io";
 import type { Epic, EpicStatus } from "../../workspace/types";
 
 interface ParsedEpicUpdateArgs {
@@ -20,21 +20,22 @@ export const epicUpdateCommand: CommandHandler = async (ctx, input) => {
   const parsed = input as ParsedEpicUpdateArgs;
 
   const workspaceRoot = ctx.paths.root;
-  const epicsDir = ctx.paths.epicsDir;
-  const epicPath = path.join(epicsDir, `${parsed.epicId}.json`);
 
-  if (!existsSync(epicsDir)) {
-    return fail("NOT_FOUND", "Workspace not initialized. Run `ananke init` first.");
+  const workspaceFailure = assertWorkspaceInitialized(ctx.paths);
+  if (workspaceFailure) {
+    return workspaceFailure;
   }
 
-  if (!existsSync(epicPath)) {
-    return fail("NOT_FOUND", `Epic not found: ${parsed.epicId}`);
+  const epicPathOrFailure = assertEpicExists(ctx.paths, parsed.epicId);
+  if (typeof epicPathOrFailure !== "string") {
+    return epicPathOrFailure;
   }
 
-  const currentEpic = await readEpic(epicPath);
-  if (isCliFailure(currentEpic)) {
-    return currentEpic;
+  const epicRecord = await readEpic(epicPathOrFailure);
+  if (!("epic" in epicRecord)) {
+    return epicRecord;
   }
+  const currentEpic = epicRecord.epic;
 
   if (currentEpic.id !== parsed.epicId) {
     return fail("CONFLICT", `Epic file id mismatch: expected ${parsed.epicId}`);
@@ -66,7 +67,7 @@ export const epicUpdateCommand: CommandHandler = async (ctx, input) => {
         id: nextEpic.id,
         status: nextEpic.status,
       },
-      path: relativePath(workspaceRoot, epicPath),
+      path: toWorkspaceRelative(workspaceRoot, epicPathOrFailure),
       applied: {
         constraints_added: 0,
         decisions_added: 0,
@@ -76,14 +77,14 @@ export const epicUpdateCommand: CommandHandler = async (ctx, input) => {
 
   nextEpic.updated_at = new Date().toISOString();
 
-  await writeJson(epicPath, nextEpic);
+  await writeJsonFile(epicPathOrFailure, nextEpic);
 
   return ok(`Updated epic ${parsed.epicId}`, {
     epic: {
       id: nextEpic.id,
       status: nextEpic.status,
     },
-    path: relativePath(workspaceRoot, epicPath),
+    path: toWorkspaceRelative(workspaceRoot, epicPathOrFailure),
     applied: {
       constraints_added: constraintsAdded,
       decisions_added: decisionsAdded,
@@ -91,59 +92,17 @@ export const epicUpdateCommand: CommandHandler = async (ctx, input) => {
   });
 };
 
-async function readEpic(filePath: string): Promise<Epic | CliFailure> {
+async function readEpic(filePath: string): Promise<{ epic: Epic } | CliFailure> {
   try {
-    const raw = await readFile(filePath, "utf8");
-    const parsed = JSON.parse(raw);
-    if (!isValidEpic(parsed)) {
+    const parsed = await readJsonFile<unknown>(filePath);
+    if (!isEpic(parsed)) {
       return fail("CONFLICT", "Invalid epic file contents");
     }
 
-    return parsed;
+    return { epic: parsed };
   } catch (_error) {
     return fail("CONFLICT", "Failed reading epic file");
   }
-}
-
-function isValidEpic(value: unknown): value is Epic {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-
-  const epic = value as Partial<Epic>;
-  if (!isNonEmptyString(epic.id) || !isNonEmptyString(epic.title) || !isNonEmptyString(epic.goal)) {
-    return false;
-  }
-
-  if (epic.status !== "active" && epic.status !== "paused" && epic.status !== "done") {
-    return false;
-  }
-
-  if (!isStringArray(epic.constraints) || !isStringArray(epic.decisions)) {
-    return false;
-  }
-
-  if (!isNonEmptyString(epic.created_at) || !isNonEmptyString(epic.updated_at)) {
-    return false;
-  }
-
-  if (epic.context !== undefined && typeof epic.context !== "string") {
-    return false;
-  }
-
-  if (epic.digest !== undefined && typeof epic.digest !== "string") {
-    return false;
-  }
-
-  return true;
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
 }
 
 function assignIfChanged<T extends keyof Epic>(
@@ -174,21 +133,4 @@ function appendUnique(target: string[], incoming: string[]): number {
   }
 
   return added;
-}
-
-async function writeJson(filePath: string, value: unknown): Promise<void> {
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
-
-function relativePath(root: string, target: string): string {
-  const rel = path.relative(root, target);
-  if (rel.length === 0) {
-    return ".";
-  }
-
-  return rel;
-}
-
-function isCliFailure(value: CliFailure | Epic): value is CliFailure {
-  return "ok" in value && value.ok === false;
 }

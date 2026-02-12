@@ -57,13 +57,13 @@ This system is intentionally **not** a full ticketing platform. It is an AI-firs
   index.json
   schema.json
   epics/
-    E-001.json
+    EPC-001.json
   tasks/
-    T-001.json
+    TSK-001.json
   deps/
     blocks.json
   packs/
-    T-001.md
+    TSK-001.md
 ```
 
 Notes:
@@ -81,7 +81,7 @@ Epics are long-lived memory anchors for top-level intent.
 
 Required fields:
 
-- `id` (string, e.g. `E-001`)
+- `id` (string, e.g. `EPC-001`)
 - `title` (string)
 - `goal` (string)
 - `status` (`active|paused|done`)
@@ -101,7 +101,7 @@ Tasks are executable work units under a single epic.
 
 Required fields:
 
-- `id` (string, e.g. `T-001`)
+- `id` (string, e.g. `TSK-001`)
 - `epic_id` (string)
 - `title` (string)
 - `description` (string)
@@ -114,7 +114,7 @@ Optional fields:
 
 - `notes` (string; in-progress learnings)
 - `acceptance` (array of strings)
-- `outcome_summary` (string; required when closing to `done`)
+- `outcome_summary` (string; required for any transition to `done`)
 
 ### Dependency Graph
 
@@ -126,7 +126,7 @@ Minimal edge representation:
 
 ```json
 [
-  { "from": "T-001", "to": "T-002" }
+  { "from": "TSK-001", "to": "TSK-002" }
 ]
 ```
 
@@ -137,11 +137,11 @@ Interpretation:
 
 ## JSON Schema Sketches (High-Level)
 
-### `.ananke/epics/E-001.json`
+### `.ananke/epics/EPC-001.json`
 
 ```json
 {
-  "id": "E-001",
+  "id": "EPC-001",
   "title": "AI-native local execution layer",
   "goal": "Ship a minimal epic/task/dependency/ready/pack system",
   "status": "active",
@@ -161,12 +161,12 @@ Interpretation:
 }
 ```
 
-### `.ananke/tasks/T-001.json`
+### `.ananke/tasks/TSK-001.json`
 
 ```json
 {
-  "id": "T-001",
-  "epic_id": "E-001",
+  "id": "TSK-001",
+  "epic_id": "EPC-001",
   "title": "Define JSON schema",
   "description": "Specify fields for epic, task, and dependency edges.",
   "status": "todo",
@@ -185,8 +185,8 @@ Interpretation:
 
 ```json
 [
-  { "from": "T-001", "to": "T-002" },
-  { "from": "T-002", "to": "T-003" }
+  { "from": "TSK-001", "to": "TSK-002" },
+  { "from": "TSK-002", "to": "TSK-003" }
 ]
 ```
 
@@ -315,13 +315,13 @@ Example JSON response:
 ```json
 {
   "ok": true,
-  "message": "Created epic E-001",
+  "message": "Created epic EPC-001",
   "data": {
     "epic": {
-      "id": "E-001",
+      "id": "EPC-001",
       "status": "active"
     },
-    "path": ".ananke/epics/E-001.json"
+    "path": ".ananke/epics/EPC-001.json"
   }
 }
 ```
@@ -335,8 +335,8 @@ Flags:
 Examples:
 
 ```bash
-ananke epic show E-001
-ananke epic show E-001 --json
+ananke epic show EPC-001
+ananke epic show EPC-001 --json
 ```
 
 ### `ananke epic update`
@@ -362,9 +362,37 @@ Flags:
 Examples:
 
 ```bash
-ananke epic update E-001 --add-decision "Use generated packs as default handoff"
-ananke epic update E-001 --status paused
-ananke epic update E-001 --add-constraint "No daemon in MVP" --add-constraint "No daemon in MVP"
+ananke epic update EPC-001 --add-decision "Use generated packs as default handoff"
+ananke epic update EPC-001 --status paused
+ananke epic update EPC-001 --add-constraint "No daemon in MVP" --add-constraint "No daemon in MVP"
+```
+
+### `ananke epic digest refresh` (Post-MVP Extension)
+
+Purpose:
+
+- Rebuild epic `digest` using durable task memory and an LLM summarizer.
+
+Contract:
+
+- Reads all tasks in the epic with `status=done` and non-empty `outcome_summary`.
+- Produces a concise digest focused on decisions, outcomes, risks, and open follow-ups.
+- Writes the synthesized digest to epic `digest` and updates `updated_at`.
+- Deterministic input ordering before LLM invocation:
+  1. `updated_at` ascending
+  2. `id` ascending
+
+Flags:
+
+- `<epic-id>` (required)
+- `--model <name>` (optional, implementation-defined)
+- `--stdout` (optional; print digest without writing)
+
+Examples:
+
+```bash
+ananke epic digest refresh EPC-001
+ananke epic digest refresh EPC-001 --stdout
 ```
 
 ### `ananke task create`
@@ -384,8 +412,8 @@ Flags:
 Examples:
 
 ```bash
-ananke task create --epic E-001 --title "Define schema" --description "Finalize fields and invariants" --priority 1
-ananke task create --epic E-001 --title "Build ready query" --description "Compute unblocked todo tasks" --acceptance "Excludes blocked tasks" --acceptance "Supports --epic filter"
+ananke task create --epic EPC-001 --title "Define schema" --description "Finalize fields and invariants" --priority 1
+ananke task create --epic EPC-001 --title "Build ready query" --description "Compute unblocked todo tasks" --acceptance "Excludes blocked tasks" --acceptance "Supports --epic filter"
 ```
 
 Example JSON response:
@@ -394,12 +422,12 @@ Example JSON response:
 {
   "ok": true,
   "task": {
-    "id": "T-001",
-    "epic_id": "E-001",
+    "id": "TSK-001",
+    "epic_id": "EPC-001",
     "status": "todo",
     "priority": 1
   },
-  "path": ".ananke/tasks/T-001.json"
+  "path": ".ananke/tasks/TSK-001.json"
 }
 ```
 
@@ -412,11 +440,18 @@ Flags:
 Examples:
 
 ```bash
-ananke task show T-001
-ananke task show T-001 --json
+ananke task show TSK-001
+ananke task show TSK-001 --json
 ```
 
 ### `ananke task update`
+
+Contract:
+
+- Requires at least one update flag.
+- Any transition to `status=done` requires non-empty `--outcome-summary`.
+- `--add-acceptance` appends and dedupes exact string matches.
+- `updated_at` changes only when at least one effective change is applied.
 
 Flags:
 
@@ -426,13 +461,15 @@ Flags:
 - `--status todo|doing|done`
 - `--priority 0|1|2|3|4`
 - `--notes <text>`
+- `--outcome-summary <text>`
 - `--add-acceptance <text>` (repeatable)
 
 Examples:
 
 ```bash
-ananke task update T-001 --status doing --notes "Drafted initial schema and enums"
-ananke task update T-001 --priority 0
+ananke task update TSK-001 --status doing --notes "Drafted initial schema and enums"
+ananke task update TSK-001 --priority 0
+ananke task update TSK-001 --status done --outcome-summary "Finalized schema and locked status/priority invariants"
 ```
 
 ### `ananke task close`
@@ -454,8 +491,8 @@ Flags:
 Examples:
 
 ```bash
-ananke task close T-001 --summary "Finalized schema with strict status enums and added cycle validation notes"
-ananke task close T-002 --summary "Implemented ready query and added epic filter support"
+ananke task close TSK-001 --summary "Finalized schema with strict status enums and added cycle validation notes"
+ananke task close TSK-002 --summary "Implemented ready query and added epic filter support"
 ```
 
 ### `ananke dep add`
@@ -466,7 +503,7 @@ Purpose:
 
 Contract:
 
-- Rejects self-edge (`T-x -> T-x`).
+- Rejects self-edge (`TSK-x -> TSK-x`).
 - Rejects edge that introduces a cycle.
 - Idempotent if edge already exists.
 
@@ -478,8 +515,8 @@ Flags:
 Examples:
 
 ```bash
-ananke dep add T-001 T-002
-ananke dep add T-002 T-003
+ananke dep add TSK-001 TSK-002
+ananke dep add TSK-002 TSK-003
 ```
 
 ### `ananke dep rm`
@@ -492,7 +529,7 @@ Flags:
 Examples:
 
 ```bash
-ananke dep rm T-001 T-002
+ananke dep rm TSK-001 TSK-002
 ```
 
 ### `ananke ready`
@@ -516,7 +553,7 @@ Examples:
 
 ```bash
 ananke ready
-ananke ready --epic E-001 --json
+ananke ready --epic EPC-001 --json
 ananke ready --limit 5
 ```
 
@@ -527,8 +564,8 @@ Example JSON response:
   "ok": true,
   "tasks": [
     {
-      "id": "T-004",
-      "epic_id": "E-001",
+      "id": "TSK-004",
+      "epic_id": "EPC-001",
       "title": "Implement pack generator",
       "priority": 1
     }
@@ -557,9 +594,9 @@ Flags:
 Examples:
 
 ```bash
-ananke pack T-004
-ananke pack T-004 --format json --stdout
-ananke pack T-004 --recent 3
+ananke pack TSK-004
+ananke pack TSK-004 --format json --stdout
+ananke pack TSK-004 --recent 3
 ```
 
 Example JSON response:
@@ -567,8 +604,8 @@ Example JSON response:
 ```json
 {
   "ok": true,
-  "task_id": "T-004",
-  "output": ".ananke/packs/T-004.md",
+  "task_id": "TSK-004",
+  "output": ".ananke/packs/TSK-004.md",
   "sections": [
     "task_header",
     "epic_brief",
@@ -602,8 +639,9 @@ The pack should be concise, deterministic, and suitable as direct input to an LL
 ## Lifecycle and Memory Rules
 
 1. Every task must belong to exactly one epic.
-2. Closing a task requires `outcome_summary`.
+2. Any transition of a task to `done` requires `outcome_summary`.
 3. Epic `digest` should be periodically updated from closed task summaries.
+   - Preferred path after MVP: `ananke epic digest refresh <epic-id>`.
 4. New task execution should start from `pack <task-id>` by default.
 5. "Memory" is preserved in:
    - epic context + decisions + digest
@@ -623,7 +661,8 @@ The pack should be concise, deterministic, and suitable as direct input to an LL
    - atomic task claiming with lease expiration
    - optional integration lock for single-branch git mutation safety
 2. Memory quality automation
-   - automatic epic digest synthesis from task outcomes
+   - promote `epic digest refresh` from extension to default workflow
+   - automatic epic digest synthesis from task outcomes via LLM summarization
 3. Validation and linting
    - required fields, cycle checks, stale-task checks
 4. Optional import/export bridges
